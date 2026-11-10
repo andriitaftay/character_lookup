@@ -1,0 +1,9 @@
+[[bindings]]
+name = "extract_character"
+description = "Uses tesseract on a character in clipboard and copies character into it"
+hotkey = "CTRL+ALT+C"
+
+[[bindings]]
+name = "open_window_for_drawing_characters"
+description = "Opens a window for drawing a character"
+hotkey = "CTRL+ALT+W"

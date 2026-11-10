@@ -1,0 +1,15 @@
+[package]
+name = "character_lookup"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+arboard = { version = "3.6.1", features = ["wayland-data-control", "wl-clipboard-rs"] }
+ashpd = { version = "0.13.13", features = ["global_shortcuts"] }
+futures-util = "0.3.34"
+image = "0.25.10"
+leptess = "0.14.0"
+minifb = "0.29.0"
+serde = { version = "1.0.229", features = ["derive"] }
+tokio = { version = "1.53.2", features = ["rt", "time", "macros"] }
+toml = "1.1.6"
