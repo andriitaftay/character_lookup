@@ -60,6 +60,23 @@ async fn actually_listen_for_hotkey(portal: &mut GlobalShortcuts) -> ashpd::Resu
     Err(NoResponse)
 }
 
+async fn extract_character_on_blocking_thread(mode: OcrMode) {
+    // `extract_character` uses blocking I/O (clipboard, model download, ONNX
+    // inference). In particular, `rapidocr-core`'s blocking HTTP downloader
+    // creates and drops its own Tokio runtime, which panics if dropped on an
+    // async runtime thread. Run it on a blocking worker instead.
+    let result = tokio::task::spawn_blocking(move || {
+        extract_character(mode).map_err(|error| error.to_string())
+    })
+    .await;
+
+    match result {
+        Ok(Ok(_)) => {}
+        Ok(Err(error)) => println!("Failed to extract character: {error}"),
+        Err(error) => println!("Character extraction task failed: {error}"),
+    }
+}
+
 #[tokio::main]
 async fn main() {
     match create_shortcuts().await {
@@ -69,11 +86,11 @@ async fn main() {
             loop {
                 match actually_listen_for_hotkey(&mut portal).await {
                     Ok(MyFunctions::Extract) => {
-                        let _ = extract_character();
+                        extract_character_on_blocking_thread(OcrMode::DetectText).await;
                     }
                     Ok(MyFunctions::Draw) => {
                         let _ = run_drawing_window();
-                        let _ = extract_character();
+                        extract_character_on_blocking_thread(OcrMode::SingleCharacter).await;
                     }
                     Err(err) => {
                         println!("{:?}", err);

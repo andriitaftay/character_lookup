@@ -86,29 +86,4 @@ pub fn run_drawing_window() {
         Ok(()) => println!("Copied canvas image to clipboard"),
         Err(e) => eprintln!("Clipboard error: {e}"),
     }
-
-    //     let right_is_down = window.get_mouse_down(MouseButton::Right);
-    //     if right_is_down && !right_was_down {
-    //         let rgba: Vec<u8> = buffer
-    //             .iter()
-    //             .flat_map(|&p| [
-    //                 ((p >> 16) & 0xff) as u8,
-    //                 ((p >> 8) & 0xff) as u8,
-    //                 (p & 0xff) as u8,
-    //                 255,
-    //             ])
-    //             .collect();
-    //
-    //         match clipboard.set_image(ImageData {
-    //             width,
-    //             height,
-    //             bytes: Cow::Owned(rgba),
-    //         }) {
-    //             Ok(()) => println!("Copied canvas image to clipboard"),
-    //             Err(e) => eprintln!("Clipboard error: {e}"),
-    //         }
-    //     }
-    //     right_was_down = right_is_down;
-    //
-    //     window.update_with_buffer(&buffer, width, height).unwrap();
 }

@@ -1,6 +1,6 @@
 [[bindings]]
 name = "extract_character"
-description = "Uses tesseract on a character in clipboard and copies character into it"
+description = "Uses RapidOCR on a character in clipboard and copies character into it"
 hotkey = "CTRL+ALT+C"
 
 [[bindings]]

@@ -1,9 +1,39 @@
-use arboard::{Clipboard, ImageData};
-use image::{DynamicImage, ImageBuffer, ImageFormat, Rgba};
-use leptess::LepTess;
-use std::io::Cursor;
+use std::{
+    error::Error,
+    sync::{Mutex, OnceLock},
+};
 
-pub fn clipboard_image_to_png(image: ImageData<'_>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+use arboard::{Clipboard, ImageData};
+use image::{DynamicImage, ImageBuffer, RgbImage, Rgba};
+use rapidocr_core::{
+    RapidOcr,
+    config::PipelineConfig,
+    model::{ModelCache, ModelDownloadMode, model_set_by_name},
+    types::OcrOutput,
+};
+
+/// RapidOCR model set used for Chinese text recognition.
+const MODEL_SET_NAME: &str = "ppocrv5-ch-mobile";
+/// Directory used to cache the downloaded ONNX models.
+const DEFAULT_MODEL_DIR: &str = "models";
+
+/// Which OCR pipeline to run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OcrMode {
+    /// Detect text lines first. Suited to screenshots that may contain several
+    /// characters or lines of text.
+    DetectText,
+    /// Treat the whole image as a single character. Suited to the drawing
+    /// canvas, where the detector often misses one large isolated glyph.
+    SingleCharacter,
+}
+
+/// Building the pipeline loads ONNX sessions, which is expensive, so keep one
+/// instance per pipeline alive for the lifetime of the process.
+static DETECT_ENGINE: OnceLock<Mutex<RapidOcr>> = OnceLock::new();
+static SINGLE_CHARACTER_ENGINE: OnceLock<Mutex<RapidOcr>> = OnceLock::new();
+
+pub fn clipboard_image_to_rgb(image: ImageData<'_>) -> Result<RgbImage, Box<dyn Error>> {
     let width = image.width as u32;
     let height = image.height as u32;
 
@@ -11,28 +41,89 @@ pub fn clipboard_image_to_png(image: ImageData<'_>) -> Result<Vec<u8>, Box<dyn s
         ImageBuffer::from_raw(width, height, image.bytes.into_owned())
             .ok_or("clipboard image has invalid dimensions or pixel data")?;
 
-    let dynamic_image = DynamicImage::ImageRgba8(rgba);
-
-    let mut png_data = Cursor::new(Vec::new());
-    dynamic_image.write_to(&mut png_data, ImageFormat::Png)?;
-
-    Ok(png_data.into_inner())
+    Ok(DynamicImage::ImageRgba8(rgba).to_rgb8())
 }
 
-pub fn extract_character() -> Result<String, Box<dyn std::error::Error>> {
+fn ocr_engine(
+    slot: &'static OnceLock<Mutex<RapidOcr>>,
+    pipeline: PipelineConfig,
+) -> Result<&'static Mutex<RapidOcr>, Box<dyn Error>> {
+    if let Some(engine) = slot.get() {
+        return Ok(engine);
+    }
+
+    let model_set = model_set_by_name(MODEL_SET_NAME)
+        .ok_or_else(|| format!("unknown RapidOCR model set {MODEL_SET_NAME:?}"))?;
+    let model_dir =
+        std::env::var("RAPIDOCR_MODEL_DIR").unwrap_or_else(|_| DEFAULT_MODEL_DIR.to_string());
+    let cache = ModelCache::new(model_dir);
+
+    cache
+        .ensure_model_set_for_pipeline(model_set, pipeline, ModelDownloadMode::Missing)
+        .map_err(|error| format!("failed to prepare RapidOCR models: {error:#}"))?;
+
+    let config = cache.config_for(model_set).with_pipeline(pipeline);
+    let engine = RapidOcr::new(config)
+        .map_err(|error| format!("failed to initialize RapidOCR: {error:#}"))?;
+
+    // Another caller may have initialized the engine while this one was
+    // downloading/preparing the models, so ignore the "already set" case.
+    let _ = slot.set(Mutex::new(engine));
+    let engine = slot
+        .get()
+        .ok_or_else(|| "RapidOCR engine initialization failed".to_string())?;
+    Ok(engine)
+}
+
+fn run_ocr(engine: &Mutex<RapidOcr>, image: &RgbImage) -> Result<OcrOutput, Box<dyn Error>> {
+    let mut ocr = engine
+        .lock()
+        .map_err(|_| "RapidOCR engine lock was poisoned")?;
+    ocr.run_image(image)
+        .map_err(|error| format!("RapidOCR failed: {error:#}").into())
+}
+
+fn is_empty(output: &OcrOutput) -> bool {
+    output.lines.iter().all(|line| line.text.trim().is_empty())
+}
+
+pub fn extract_character(mode: OcrMode) -> Result<String, Box<dyn Error>> {
     let mut clipboard = Clipboard::new()?;
 
     let clipboard_image = clipboard
         .get_image()
         .map_err(|_| "the clipboard does not currently contain an image")?;
 
-    let png_data = clipboard_image_to_png(clipboard_image)?;
+    let rgb_image = clipboard_image_to_rgb(clipboard_image)?;
 
-    let mut ocr = LepTess::new(None, "chi_sim")?;
+    let output = match mode {
+        OcrMode::SingleCharacter => {
+            let engine = ocr_engine(&SINGLE_CHARACTER_ENGINE, PipelineConfig::recognition_only())?;
+            run_ocr(engine, &rgb_image)?
+        }
+        OcrMode::DetectText => {
+            let engine = ocr_engine(&DETECT_ENGINE, PipelineConfig::full())?;
+            let output = run_ocr(engine, &rgb_image)?;
 
-    ocr.set_image_from_mem(&png_data)?;
+            if is_empty(&output) {
+                // A single character filling the frame is frequently missed by
+                // the text detector, so retry by recognizing the whole image.
+                let engine =
+                    ocr_engine(&SINGLE_CHARACTER_ENGINE, PipelineConfig::recognition_only())?;
+                run_ocr(engine, &rgb_image)?
+            } else {
+                output
+            }
+        }
+    };
 
-    let text = ocr.get_utf8_text()?;
+    let text = output
+        .lines
+        .iter()
+        .map(|line| line.text.trim())
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
 
     let trimmed_text = text.trim();
     let set_text_result = clipboard.set_text(trimmed_text);
