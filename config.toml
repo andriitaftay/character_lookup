@@ -7,3 +7,13 @@ hotkey = "CTRL+ALT+C"
 name = "open_window_for_drawing_characters"
 description = "Opens a window for drawing a character"
 hotkey = "CTRL+ALT+W"
+
+[[bindings]]
+name = "lookup_character"
+description = "Looks up the character in the clipboard and shows its pinyin and translations"
+hotkey = "CTRL+ALT+Q"
+
+[settings]
+# Open the dictionary window automatically after a character is drawn and
+# recognized with the CTRL+ALT+W shortcut.
+open_lookup_after_drawing = true

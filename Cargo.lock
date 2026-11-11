@@ -232,6 +232,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
+name = "bincode"
+version = "1.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "bit_field"
 version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -333,19 +342,59 @@ dependencies = [
 ]
 
 [[package]]
+name = "character_converter"
+version = "2.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f399d4f1a0caebb329b79ea33c81afd6073e603de2589878a0770a9cef837797"
+dependencies = [
+ "bincode",
+ "fst",
+ "once_cell",
+]
+
+[[package]]
 name = "character_lookup"
 version = "0.1.0"
 dependencies = [
+ "ab_glyph",
  "arboard",
  "ashpd",
+ "chinese_dictionary",
+ "fontdb",
  "futures-util",
  "image",
+ "imageproc",
  "minifb",
  "ort",
  "rapidocr-core",
  "serde",
  "tokio",
  "toml 1.1.6+spec-1.1.0",
+]
+
+[[package]]
+name = "chinese_detection"
+version = "2.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4590788f3cbdc260f004a3c00d48bbed94f205f0c895e81b3df21ad8ecfb4cd4"
+dependencies = [
+ "bincode",
+ "once_cell",
+]
+
+[[package]]
+name = "chinese_dictionary"
+version = "2.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea04934f7ce2e3dbae1f72dc6a42b9496d77f655903ac91f372b9980eccbbcd1"
+dependencies = [
+ "bincode",
+ "character_converter",
+ "chinese_detection",
+ "fst",
+ "once_cell",
+ "serde",
+ "serde_derive",
 ]
 
 [[package]]
@@ -579,7 +628,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -676,6 +725,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
+name = "fontconfig-parser"
+version = "0.5.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbc773e24e02d4ddd8395fd30dc147524273a83e54e0f312d986ea30de5f5646"
+dependencies = [
+ "roxmltree",
+]
+
+[[package]]
+name = "fontdb"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2660c5e9157bf76d2db1294e4a9feba604ef610819a3b591088d0d8392a3290f"
+dependencies = [
+ "fontconfig-parser",
+ "log",
+ "memmap2",
+ "slotmap",
+ "tinyvec",
+]
+
+[[package]]
 name = "foreign-types"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -698,6 +769,12 @@ checksum = "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf"
 dependencies = [
  "percent-encoding",
 ]
+
+[[package]]
+name = "fst"
+version = "0.4.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ab85b9b05e3978cc9a9cf8fea7f01b494e1a09ed3037e16ba39edc7a29eb61a"
 
 [[package]]
 name = "futures"
@@ -1370,6 +1447,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
+name = "memmap2"
+version = "0.9.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b0ca1155a9ecc25aa12e8313a119f32edf0255fea2f44839c4ac0a12b2ac157"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "memoffset"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1784,7 +1870,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2070,7 +2156,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2384,6 +2470,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "roxmltree"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
+
+[[package]]
 name = "rustc-hash"
 version = "2.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2399,7 +2491,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2671,6 +2763,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
+name = "slotmap"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bdd58c3c93c3d278ca835519292445cb4b0d4dc59ccfdf7ceadaab3f8aeb4038"
+dependencies = [
+ "version_check",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2683,7 +2784,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2747,10 +2848,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3046,7 +3147,7 @@ checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
 dependencies = [
  "memoffset",
  "tempfile",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

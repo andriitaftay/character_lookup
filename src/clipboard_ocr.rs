@@ -87,43 +87,54 @@ fn is_empty(output: &OcrOutput) -> bool {
     output.lines.iter().all(|line| line.text.trim().is_empty())
 }
 
-pub fn extract_character(mode: OcrMode) -> Result<String, Box<dyn Error>> {
-    let mut clipboard = Clipboard::new()?;
-
-    let clipboard_image = clipboard
-        .get_image()
-        .map_err(|_| "the clipboard does not currently contain an image")?;
-
-    let rgb_image = clipboard_image_to_rgb(clipboard_image)?;
-
-    let output = match mode {
+fn run_pipeline(mode: OcrMode, image: &RgbImage) -> Result<OcrOutput, Box<dyn Error>> {
+    match mode {
         OcrMode::SingleCharacter => {
             let engine = ocr_engine(&SINGLE_CHARACTER_ENGINE, PipelineConfig::recognition_only())?;
-            run_ocr(engine, &rgb_image)?
+            run_ocr(engine, image)
         }
         OcrMode::DetectText => {
             let engine = ocr_engine(&DETECT_ENGINE, PipelineConfig::full())?;
-            let output = run_ocr(engine, &rgb_image)?;
+            let output = run_ocr(engine, image)?;
 
             if is_empty(&output) {
                 // A single character filling the frame is frequently missed by
                 // the text detector, so retry by recognizing the whole image.
                 let engine =
                     ocr_engine(&SINGLE_CHARACTER_ENGINE, PipelineConfig::recognition_only())?;
-                run_ocr(engine, &rgb_image)?
+                run_ocr(engine, image)
             } else {
-                output
+                Ok(output)
             }
         }
-    };
+    }
+}
 
-    let text = output
+fn output_text(output: &OcrOutput) -> String {
+    output
         .lines
         .iter()
         .map(|line| line.text.trim())
         .filter(|line| !line.is_empty())
         .collect::<Vec<_>>()
-        .join("\n");
+        .join("\n")
+}
+
+fn recognize_image(mode: OcrMode, image: &RgbImage) -> Result<String, Box<dyn Error>> {
+    Ok(output_text(&run_pipeline(mode, image)?))
+}
+
+fn clipboard_rgb_image(clipboard: &mut Clipboard) -> Result<RgbImage, Box<dyn Error>> {
+    let clipboard_image = clipboard
+        .get_image()
+        .map_err(|_| "the clipboard does not currently contain an image")?;
+    clipboard_image_to_rgb(clipboard_image)
+}
+
+pub fn extract_character(mode: OcrMode) -> Result<String, Box<dyn Error>> {
+    let mut clipboard = Clipboard::new()?;
+    let rgb_image = clipboard_rgb_image(&mut clipboard)?;
+    let text = recognize_image(mode, &rgb_image)?;
 
     let trimmed_text = text.trim();
     let set_text_result = clipboard.set_text(trimmed_text);
@@ -135,4 +146,24 @@ pub fn extract_character(mode: OcrMode) -> Result<String, Box<dyn Error>> {
     }
 
     Ok(trimmed_text.to_string())
+}
+
+/// Returns a character (or short word) from the clipboard, preferring text and
+/// falling back to OCR of a clipboard image.
+pub fn character_from_clipboard() -> Result<String, Box<dyn Error>> {
+    let mut clipboard = Clipboard::new()?;
+
+    if let Ok(text) = clipboard.get_text() {
+        let trimmed = text.trim();
+        if !trimmed.is_empty() {
+            return Ok(trimmed.to_string());
+        }
+    }
+
+    let clipboard_image = clipboard
+        .get_image()
+        .map_err(|_| "the clipboard does not currently contain text or an image")?;
+    let rgb_image = clipboard_image_to_rgb(clipboard_image)?;
+
+    recognize_image(OcrMode::SingleCharacter, &rgb_image)
 }

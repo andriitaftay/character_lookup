@@ -6,14 +6,17 @@ mod clipboard_ocr;
 use clipboard_ocr::*;
 
 mod parse_config;
-use parse_config::*;
 
 mod draw_char;
 use draw_char::run_drawing_window;
 
+mod lookup;
+use lookup::run_lookup_window;
+
 enum MyFunctions {
     Extract,
     Draw,
+    Lookup,
 }
 
 async fn create_shortcuts() -> Result<Vec<NewShortcut>, Box<dyn Error>> {
@@ -55,12 +58,15 @@ async fn actually_listen_for_hotkey(portal: &mut GlobalShortcuts) -> ashpd::Resu
         if event.shortcut_id() == "open_window_for_drawing_characters" {
             return Ok(MyFunctions::Draw);
         }
+        if event.shortcut_id() == "lookup_character" {
+            return Ok(MyFunctions::Lookup);
+        }
     }
 
     Err(NoResponse)
 }
 
-async fn extract_character_on_blocking_thread(mode: OcrMode) {
+async fn extract_character_on_blocking_thread(mode: OcrMode) -> Option<String> {
     // `extract_character` uses blocking I/O (clipboard, model download, ONNX
     // inference). In particular, `rapidocr-core`'s blocking HTTP downloader
     // creates and drops its own Tokio runtime, which panics if dropped on an
@@ -71,9 +77,41 @@ async fn extract_character_on_blocking_thread(mode: OcrMode) {
     .await;
 
     match result {
-        Ok(Ok(_)) => {}
-        Ok(Err(error)) => println!("Failed to extract character: {error}"),
-        Err(error) => println!("Character extraction task failed: {error}"),
+        Ok(Ok(text)) => Some(text),
+        Ok(Err(error)) => {
+            println!("Failed to extract character: {error}");
+            None
+        }
+        Err(error) => {
+            println!("Character extraction task failed: {error}");
+            None
+        }
+    }
+}
+
+async fn lookup_clipboard_character() {
+    let result = tokio::task::spawn_blocking(|| {
+        character_from_clipboard().map_err(|error| error.to_string())
+    })
+    .await;
+
+    match result {
+        Ok(Ok(character)) => {
+            if let Err(error) = run_lookup_window(&character) {
+                println!("Failed to open lookup window: {error}");
+            }
+        }
+        Ok(Err(error)) => println!("Failed to read character from clipboard: {error}"),
+        Err(error) => println!("Character lookup task failed: {error}"),
+    }
+}
+
+fn open_lookup_window(character: &str) {
+    if character.trim().is_empty() {
+        return;
+    }
+    if let Err(error) = run_lookup_window(character) {
+        println!("Failed to open lookup window: {error}");
     }
 }
 
@@ -86,11 +124,20 @@ async fn main() {
             loop {
                 match actually_listen_for_hotkey(&mut portal).await {
                     Ok(MyFunctions::Extract) => {
-                        extract_character_on_blocking_thread(OcrMode::DetectText).await;
+                        let _ = extract_character_on_blocking_thread(OcrMode::DetectText).await;
                     }
                     Ok(MyFunctions::Draw) => {
                         let _ = run_drawing_window();
-                        extract_character_on_blocking_thread(OcrMode::SingleCharacter).await;
+                        let character =
+                            extract_character_on_blocking_thread(OcrMode::SingleCharacter).await;
+                        if parse_config::open_lookup_after_drawing() {
+                            if let Some(character) = character {
+                                open_lookup_window(&character);
+                            }
+                        }
+                    }
+                    Ok(MyFunctions::Lookup) => {
+                        lookup_clipboard_character().await;
                     }
                     Err(err) => {
                         println!("{:?}", err);
